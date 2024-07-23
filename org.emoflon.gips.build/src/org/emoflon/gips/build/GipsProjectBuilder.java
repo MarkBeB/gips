@@ -13,9 +13,11 @@ import org.emoflon.gips.build.generator.GipsCodeGenerator;
 import org.emoflon.gips.build.generator.GipsImportManager;
 import org.emoflon.gips.build.transformation.GipsToIntermediate;
 import org.emoflon.gips.debugger.better.DebugService;
+import org.emoflon.gips.debugger.trace.HelperGraph2Ecore;
+import org.emoflon.gips.debugger.trace.TraceGraph;
+import org.emoflon.gips.debugger.trace.TraceLink;
 import org.emoflon.gips.debugger.trace.TraceMap;
-import org.emoflon.gips.debugger.trace.TraceModelBuilder;
-import org.emoflon.gips.debugger.trace.resolver.ResolverEcore2Id;
+import org.emoflon.gips.debugger.trace.resolver.ResolveEcore2Id;
 import org.emoflon.gips.gipsl.generator.GipsBuilderExtension;
 import org.emoflon.gips.gipsl.gipsl.EditorGTFile;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediateModel;
@@ -146,14 +148,15 @@ public class GipsProjectBuilder implements GipsBuilderExtension {
 			}
 
 			try {
-				TraceModelBuilder builder = new TraceModelBuilder();
-				builder.addModel("gipsl", null);
-				builder.addModel("gips", null);
-
 				var traceMap = transformer.getGipsl2GipsTrace();
-				var mapping = TraceMap.normalize(traceMap, ResolverEcore2Id.INSTANCE, ResolverEcore2Id.INSTANCE);
-				builder.addTraceToModel("gipsl", "gips", mapping);
-				GipsBuilderUtils.saveResource(builder.getModelRoot(),
+				var mapping = TraceMap.normalize(traceMap, ResolveEcore2Id.INSTANCE, ResolveEcore2Id.INSTANCE);
+
+				var traceGraph = new TraceGraph();
+				traceGraph.addOrReplaceTraceLink(new TraceLink("gipsl", "gips", mapping), true);
+
+				var traceModel = HelperGraph2Ecore.buildModelFromGraph(traceGraph);
+
+				GipsBuilderUtils.saveResource(traceModel,
 						project.getLocation().append("traces").append("gipsl2gips-trace.xmi").toOSString());
 			} catch (Exception e) {
 				LogUtils.error(logger, e.toString());
