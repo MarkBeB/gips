@@ -16,6 +16,7 @@ import org.emoflon.gips.build.transformation.helper.GipsTransformationUtils;
 import org.emoflon.gips.build.transformation.transformer.ArithmeticExpressionTransformer;
 import org.emoflon.gips.build.transformation.transformer.BooleanExpressionTransformer;
 import org.emoflon.gips.build.transformation.transformer.TransformerFactory;
+import org.emoflon.gips.debugger.trace.TraceMap;
 import org.emoflon.gips.gipsl.gipsl.EditorGTFile;
 import org.emoflon.gips.gipsl.gipsl.GipsConfig;
 import org.emoflon.gips.gipsl.gipsl.GipsConstraint;
@@ -26,6 +27,7 @@ import org.emoflon.gips.gipsl.gipsl.GipsMappingVariable;
 import org.emoflon.gips.gipsl.gipsl.GipsObjective;
 import org.emoflon.gips.gipsl.gipsl.GipsPatternContext;
 import org.emoflon.gips.gipsl.gipsl.GipsTypeContext;
+import org.emoflon.gips.gipsl.gipsl.ImportedPattern;
 import org.emoflon.gips.intermediate.GipsIntermediate.BinaryArithmeticExpression;
 import org.emoflon.gips.intermediate.GipsIntermediate.BinaryArithmeticOperator;
 import org.emoflon.gips.intermediate.GipsIntermediate.Constraint;
@@ -71,11 +73,13 @@ public class GipsToIntermediate {
 	protected GipsIntermediateFactory factory = GipsIntermediateFactory.eINSTANCE;
 	final protected GipsTransformationData data;
 	final protected TransformerFactory transformationFactory;
+	final private TraceMap<EObject, EObject> gipsl2gipsTrace;
 	protected int constraintCounter = 0;
 
 	public GipsToIntermediate(final EditorGTFile gipsSlangFile) {
 		data = new GipsTransformationData(factory.createGipsIntermediateModel(), gipsSlangFile);
 		this.transformationFactory = new TransformerFactory(data);
+		this.gipsl2gipsTrace = new TraceMap<>();
 	}
 
 	public GipsIntermediateModel transform() throws Exception {
@@ -94,6 +98,10 @@ public class GipsToIntermediate {
 		data.model().getVariables().addAll(data.ePattern2Pattern().values());
 
 		return data.model();
+	}
+
+	public TraceMap<EObject, EObject> getGipsl2GipsTrace() {
+		return gipsl2gipsTrace;
 	}
 
 	protected void preprocessGipslFile() {
@@ -212,6 +220,7 @@ public class GipsToIntermediate {
 			mapping.setLowerBound(0.0);
 			data.model().getVariables().add(mapping);
 			data.eMapping2Mapping().put(eMapping, mapping);
+			gipsl2gipsTrace.map(eMapping, mapping);
 		});
 	}
 
@@ -233,6 +242,7 @@ public class GipsToIntermediate {
 				gtMapping.getBoundVariables().add(var);
 				data.model().getVariables().add(var);
 				data.eVariable2Variable().put(gipsVar, var);
+				gipsl2gipsTrace.map(gipsVar, var);
 			} else {
 				Variable var = factory.createVariable();
 				var.setType(GipsTransformationUtils.typeToVariableType(gipsVar.getType()));
@@ -242,6 +252,7 @@ public class GipsToIntermediate {
 				gtMapping.getFreeVariables().add(var);
 				data.model().getVariables().add(var);
 				data.eVariable2Variable().put(gipsVar, var);
+				gipsl2gipsTrace.map(gipsVar, var);
 			}
 
 		}
@@ -260,6 +271,7 @@ public class GipsToIntermediate {
 			gtMapping.getFreeVariables().add(var);
 			data.model().getVariables().add(var);
 			data.eVariable2Variable().put(gipsVar, var);
+			gipsl2gipsTrace.map(gipsVar, var);
 		}
 	}
 
@@ -278,6 +290,7 @@ public class GipsToIntermediate {
 				case CONJUCTION_OF_LITERALS -> {
 					Constraint dConstraint = createDependencyConstraint(eSubConstraint, constraintCounter);
 					data.model().getConstraints().add(dConstraint);
+					gipsl2gipsTrace.map(eConstraint, dConstraint);
 					constraintCounter++;
 
 					Map<GipsConstraint, Constraint> transformed = new HashMap<>();
@@ -286,6 +299,8 @@ public class GipsToIntermediate {
 					for (GipsConstraint subConstraint : eSubConstraint.result().values()) {
 						Constraint constraint = transformConstraint(subConstraint);
 						data.model().getConstraints().add(constraint);
+						gipsl2gipsTrace.map(eConstraint, constraint);
+
 						transformed.put(subConstraint, constraint);
 						dConstraint.getDependencies().add(constraint);
 						constraint.setNegated(false);
@@ -419,10 +434,12 @@ public class GipsToIntermediate {
 				case LITERAL -> {
 					Constraint constraint = transformConstraint(eSubConstraint.result().values().iterator().next());
 					constraint.setNegated(false);
+					gipsl2gipsTrace.map(eConstraint, constraint);
 				}
 				case NEGATED_LITERAL -> {
 					Constraint constraint = transformConstraint(eSubConstraint.result().values().iterator().next());
 					data.model().getConstraints().add(constraint);
+					gipsl2gipsTrace.map(eConstraint, constraint);
 
 					if (constraint.isConstant()) {
 						constraint.setNegated(true);
@@ -436,6 +453,7 @@ public class GipsToIntermediate {
 
 					Constraint dConstraint = createDependencyConstraint(eSubConstraint, constraintCounter);
 					data.model().getConstraints().add(dConstraint);
+					gipsl2gipsTrace.map(eConstraint, dConstraint);
 					constraintCounter++;
 					dConstraint.getDependencies().add(constraint);
 
@@ -476,6 +494,7 @@ public class GipsToIntermediate {
 
 		data.model().getConstraints().add(constraint);
 		data.eConstraint2Constraint().put(subConstraint, constraint);
+		gipsl2gipsTrace.map(subConstraint, constraint);
 		constraintCounter++;
 
 		BooleanExpressionTransformer transformer = transformationFactory.createBooleanTransformer(constraint);
@@ -519,6 +538,7 @@ public class GipsToIntermediate {
 			objective.setElementwise(true);
 			data.model().getObjectives().add(objective);
 			data.eObjective2Objective().put(eObjective, objective);
+			gipsl2gipsTrace.map(eObjective, objective);
 
 			ArithmeticExpressionTransformer<? extends EObject> transformer = transformationFactory
 					.createArithmeticTransformer(objective);
@@ -527,6 +547,8 @@ public class GipsToIntermediate {
 			// of products.
 			objective.setExpression(
 					new GipsArithmeticTransformer(factory).normalizeAndExpand(objective.getExpression()));
+
+			gipsl2gipsTrace.map(eObjective.getExpr(), objective.getExpression());
 		}
 	}
 
@@ -538,6 +560,7 @@ public class GipsToIntermediate {
 
 		GlobalObjective globalObj = factory.createGlobalObjective();
 		data.model().setGlobalObjective(globalObj);
+		gipsl2gipsTrace.map(eGlobalObj, globalObj);
 
 		switch (eGlobalObj.getObjectiveGoal()) {
 		case MAX -> {
@@ -558,6 +581,8 @@ public class GipsToIntermediate {
 		// Rewrite the expression, which will be translated into ILP-Terms, into a sum
 		// of products.
 		globalObj.setExpression(new GipsArithmeticTransformer(factory).normalizeAndExpand(globalObj.getExpression()));
+
+		gipsl2gipsTrace.map(eGlobalObj.getExpr(), globalObj.getExpression());
 	}
 
 	protected Constraint createConstraint(final GipsConstraint eConstraint, int counter) {
@@ -646,6 +671,7 @@ public class GipsToIntermediate {
 			for (IBeXRule rule : data.model().getIbexModel().getRuleSet().getRules()) {
 				if (rule.getName().equals(ePattern.getName())) {
 					data.ePattern2Rule().put(ePattern, rule);
+					gipsl2gipsTrace.map(ePattern, rule);
 					for (EditorNode eNode : ePattern.getNodes()) {
 						for (IBeXNode node : toContextPattern(rule.getLhs()).getSignatureNodes()) {
 							if (eNode.getName().equals(node.getName())) {
@@ -666,6 +692,7 @@ public class GipsToIntermediate {
 			for (IBeXContext pattern : data.model().getIbexModel().getPatternSet().getContextPatterns()) {
 				if (pattern.getName().equals(ePattern.getName())) {
 					data.ePattern2Context().put(ePattern, pattern);
+					gipsl2gipsTrace.map(ePattern, pattern);
 
 					for (EditorNode eNode : ePattern.getNodes()) {
 						for (IBeXNode node : toContextPattern(pattern).getSignatureNodes()) {

@@ -1,6 +1,7 @@
 package org.emoflon.gips.core.api;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,6 +16,7 @@ import org.emoflon.gips.core.TypeIndexer;
 import org.emoflon.gips.core.ilp.ILPSolver;
 import org.emoflon.gips.core.ilp.ILPSolverConfig;
 import org.emoflon.gips.core.validation.GipsConstraintValidationLog;
+import org.emoflon.gips.debugger.better.Gips2IlpTracer;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediateModel;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediatePackage;
 import org.emoflon.gips.intermediate.GipsIntermediate.ILPConfig;
@@ -129,7 +131,27 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.loadModel(modelUri);
 		eMoflonAPI = eMoflonApp.initAPI();
+		createInternals(gipsModelURI);
+	}
+
+	/**
+	 * Internal initialization that uses an already existing resource set as a
+	 * model.
+	 * 
+	 * @param gipsModelURI URL to the GIPS model.
+	 * @param model        Resource set that contains the already existing model
+	 *                     instance.
+	 */
+	protected void initInternal(final URI gipsModelURI, final ResourceSet model) {
+		eMoflonApp.registerMetaModels();
+		eMoflonApp.setModel(model);
+		eMoflonAPI = eMoflonApp.initAPI();
+		createInternals(gipsModelURI);
+	}
+
+	protected void createInternals(final URI gipsModelURI) {
 		loadIntermediateModel(gipsModelURI);
+		initTracer(gipsModelURI);
 		initTypeIndexer();
 		validationLog = new GipsConstraintValidationLog();
 		setSolverConfig(gipsModel.getConfig());
@@ -146,33 +168,10 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 		setILPSolver(createSolver());
 	}
 
-	/**
-	 * Internal initialization that uses an already existing resource set as a
-	 * model.
-	 * 
-	 * @param gipsModelURI URL to the GIPS model.
-	 * @param model        Resource set that contains the already existing model
-	 *                     instance.
-	 */
-	protected void initInternal(final URI gipsModelURI, final ResourceSet model) {
-		eMoflonApp.registerMetaModels();
-		eMoflonApp.setModel(model);
-		eMoflonAPI = eMoflonApp.initAPI();
-		loadIntermediateModel(gipsModelURI);
-		initTypeIndexer();
-		validationLog = new GipsConstraintValidationLog();
-		setSolverConfig(gipsModel.getConfig());
-		initMapperFactory();
-		createMappers();
-		initConstraintFactory();
-		createConstraints();
-		initObjectiveFactory();
-		createObjectives();
-
-		if (gipsModel.getGlobalObjective() != null)
-			setGlobalObjective(createGlobalObjective());
-
-		setILPSolver(createSolver());
+	protected void initTracer(final URI gipsModelURI) {
+		var filePath = Path.of("").resolve("traces").resolve("gips2ilp-trace.xmi");
+		var tracer = new Gips2IlpTracer(filePath);
+		setTracer(tracer);
 	}
 
 	protected void loadIntermediateModel(final URI gipsModelURI) {

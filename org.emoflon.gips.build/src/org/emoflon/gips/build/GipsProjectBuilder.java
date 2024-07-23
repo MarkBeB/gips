@@ -12,6 +12,10 @@ import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.emoflon.gips.build.generator.GipsCodeGenerator;
 import org.emoflon.gips.build.generator.GipsImportManager;
 import org.emoflon.gips.build.transformation.GipsToIntermediate;
+import org.emoflon.gips.debugger.better.DebugService;
+import org.emoflon.gips.debugger.trace.TraceMap;
+import org.emoflon.gips.debugger.trace.TraceModelBuilder;
+import org.emoflon.gips.debugger.trace.resolver.ResolverEcore2Id;
 import org.emoflon.gips.gipsl.generator.GipsBuilderExtension;
 import org.emoflon.gips.gipsl.gipsl.EditorGTFile;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediateModel;
@@ -106,6 +110,56 @@ public class GipsProjectBuilder implements GipsBuilderExtension {
 		} catch (CoreException e) {
 			LogUtils.error(logger, e.toString());
 			e.printStackTrace();
+		}
+
+		tracing(project, gipsApiData, gipsSlangFile, transformer, model);
+	}
+
+	private void tracing(final IProject project, final GipsAPIData gipsApiData, final EditorGTFile gipsSlangFile,
+			final GipsToIntermediate transformer, final GipsIntermediateModel model) {
+		// tracing
+		try {
+			var contextId = project.getName(); // gipsSlangFile.eResource().getURI().trimFileExtension().toString();
+			var tracer = DebugService.getInstance().getTraceMap(contextId, true);
+
+			try {
+				var runtimeTrace = project.getLocation().append("traces").append("gips2ilp-trace.xmi");
+				tracer.loadTrace(URI.createFileURI(runtimeTrace.toString()));
+			} catch (Exception e) {
+				LogUtils.error(logger, e.toString());
+			}
+
+			try {
+				var traceMap = transformer.getGipsl2GipsTrace();
+
+				var gipslFileUri = gipsSlangFile.eResource().getURI().trimFragment().trimFileExtension().toString()
+						+ ".gipsl";
+				tracer.setModelUri("gipsl", gipslFileUri);
+
+//				var gipsFileUri = URI.createFileURI(gipsApiData.apiPackageFolder.getLocation() + "/gips/gips-model.xmi");
+				var gipsFileUri = gipsApiData.intermediateModelURI;
+				tracer.setModelUri("gips", gipsFileUri.toString());
+
+				tracer.addOrReplaceTrace("gipsl", "gips", traceMap);
+			} catch (Exception e) {
+				LogUtils.error(logger, e.toString());
+			}
+
+			try {
+				TraceModelBuilder builder = new TraceModelBuilder();
+				builder.addModel("gipsl", null);
+				builder.addModel("gips", null);
+
+				var traceMap = transformer.getGipsl2GipsTrace();
+				var mapping = TraceMap.normalize(traceMap, ResolverEcore2Id.INSTANCE, ResolverEcore2Id.INSTANCE);
+				builder.addTraceToModel("gipsl", "gips", mapping);
+				GipsBuilderUtils.saveResource(builder.getModelRoot(),
+						project.getLocation().append("traces").append("gipsl2gips-trace.xmi").toOSString());
+			} catch (Exception e) {
+				LogUtils.error(logger, e.toString());
+			}
+		} catch (Exception ex1) {
+			System.err.println(ex1.getMessage());
 		}
 	}
 
