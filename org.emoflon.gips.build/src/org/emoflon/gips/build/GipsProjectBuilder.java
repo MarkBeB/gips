@@ -14,9 +14,6 @@ import org.emoflon.gips.build.generator.GipsImportManager;
 import org.emoflon.gips.build.transformation.GipsToIntermediate;
 import org.emoflon.gips.debugger.api.IDebugContext;
 import org.emoflon.gips.debugger.api.IDebugService;
-import org.emoflon.gips.debugger.api.StaticModelIds;
-import org.emoflon.gips.debugger.trace.HelperGraph2Ecore;
-import org.emoflon.gips.debugger.trace.TraceGraph;
 import org.emoflon.gips.debugger.trace.TraceMap;
 import org.emoflon.gips.debugger.trace.TraceModelLink;
 import org.emoflon.gips.debugger.trace.resolver.ResolveEcore2Id;
@@ -112,7 +109,7 @@ public class GipsProjectBuilder implements GipsBuilderExtension {
 		gipsGen.generate();
 		LogUtils.info(logger, "GipsProjectBuilder: Done!");
 
-		updateTrace(project, gipsApiData, gipsSlangFile, transformer, model);
+		updateTrace(project, gipsApiData, gipsSlangFile, transformer);
 
 		try {
 			project.refreshLocal(IResource.DEPTH_INFINITE, new NullProgressMonitor());
@@ -123,11 +120,7 @@ public class GipsProjectBuilder implements GipsBuilderExtension {
 	}
 
 	private void updateTrace(final IProject project, final GipsAPIData gipsApiData, final EditorGTFile gipsSlangFile,
-			final GipsToIntermediate transformer, final GipsIntermediateModel model) {
-
-		URI correctGipslUri = gipsSlangFile.eResource().getURI().trimFileExtension().appendFileExtension("gipsl");
-		URI correctGipsUri = URI.createPlatformResourceURI("/" + project.getName() + "/"
-				+ gipsApiData.apiPackageFolder.getProjectRelativePath() + "/gips/gips-model.xmi", true);
+			final GipsToIntermediate transformer) {
 
 		IDebugContext traceContext = IDebugService.getInstance().getContext(project.getName());
 
@@ -142,21 +135,17 @@ public class GipsProjectBuilder implements GipsBuilderExtension {
 			var gipsl2gipsMppings = TraceMap.normalize(transformer.getGipsl2GipsTrace(), ResolveEcore2Id.INSTANCE,
 					ResolveEcore2Id.INSTANCE);
 
-//			gipsSlangFile.eResource().getURI().trimFileExtension().lastSegment();
-//			gipsApiData.intermediateModelURI.trimFileExtension().lastSegment();
-
-			var gipslModelId = StaticModelIds.MODEL_ID_GIPSL; // HelperEclipse.toPlatformURI(correctGipslUri).toPlatformString(true);
-			var gipsModelId = gipsApiData.intermediateModelURI.trimFileExtension().lastSegment(); // StaticModelIds.MODEL_ID_GIPS_INTERMEDIATE;
-																									// //
-																									// HelperEclipse.toPlatformURI(correctGipsUri).toPlatformString(true);
+			// file name as model id
+			var gipslModelId = gipsSlangFile.eResource().getURI().trimFileExtension().lastSegment();
+			var gipsModelId = gipsApiData.intermediateModelURI.trimFileExtension().lastSegment();
 			traceContext.updateTraceModel(new TraceModelLink(gipslModelId, gipsModelId, gipsl2gipsMppings));
 
 			// for fun
-			var traceGraph = new TraceGraph();
-			traceGraph.addOrReplaceTraceLink(new TraceModelLink(gipslModelId, gipsModelId, gipsl2gipsMppings));
-			var traceModel = HelperGraph2Ecore.buildModelFromGraph(traceGraph);
-			GipsBuilderUtils.saveResource(traceModel,
-					project.getLocation().append("traces").append("gipsl2gips-trace.xmi").toOSString());
+//			var traceGraph = new TraceGraph();
+//			traceGraph.addOrReplaceTraceLink(new TraceModelLink(gipslModelId, gipsModelId, gipsl2gipsMppings));
+//			var traceModel = HelperGraph2Ecore.buildModelFromGraph(traceGraph);
+//			GipsBuilderUtils.saveResource(traceModel,
+//					project.getLocation().append("traces").append("gipsl2gips-trace.xmi").toOSString());
 
 		} catch (Exception e) {
 			LogUtils.error(logger, e.toString());
