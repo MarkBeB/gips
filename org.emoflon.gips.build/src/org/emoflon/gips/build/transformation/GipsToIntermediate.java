@@ -73,13 +73,12 @@ public class GipsToIntermediate {
 	protected GipsIntermediateFactory factory = GipsIntermediateFactory.eINSTANCE;
 	final protected GipsTransformationData data;
 	final protected TransformerFactory transformationFactory;
-	final private TraceMap<EObject, EObject> gipsl2gipsTrace;
+	final private TraceMap<EObject, EObject> gipsl2gipsTrace = new TraceMap<>();
 	protected int constraintCounter = 0;
 
 	public GipsToIntermediate(final EditorGTFile gipsSlangFile) {
 		data = new GipsTransformationData(factory.createGipsIntermediateModel(), gipsSlangFile);
 		this.transformationFactory = new TransformerFactory(data);
-		this.gipsl2gipsTrace = new TraceMap<>();
 	}
 
 	public GipsIntermediateModel transform() throws Exception {
@@ -159,8 +158,9 @@ public class GipsToIntermediate {
 		}
 
 		config.setBuildLaunchConfig(eConfig.isEnableLaunchConfig());
-		if (eConfig.isEnableLaunchConfig())
+		if (eConfig.isEnableLaunchConfig()) {
 			config.setMainFile(eConfig.getMainLoc().replace("\"", ""));
+		}
 
 		config.setEnableDebugOutput(eConfig.isEnableDebugOutput());
 		config.setEnablePresolve(eConfig.isEnablePresolve());
@@ -186,6 +186,7 @@ public class GipsToIntermediate {
 		}
 
 		data.model().setConfig(config);
+		gipsl2gipsTrace.map(eConfig, config);
 	}
 
 	protected void transformMappings() {
@@ -225,8 +226,9 @@ public class GipsToIntermediate {
 	}
 
 	protected void transformMappingVariables(GipsMapping mapping, GTMapping gtMapping) {
-		if (mapping.getVariables() == null || mapping.getVariables().isEmpty())
+		if (mapping.getVariables() == null || mapping.getVariables().isEmpty()) {
 			return;
+		}
 
 		for (GipsMappingVariable gipsVar : mapping.getVariables()) {
 			if (gipsVar.isBound()) {
@@ -259,8 +261,9 @@ public class GipsToIntermediate {
 	}
 
 	protected void transformMappingVariables(GipsMapping mapping, PatternMapping gtMapping) {
-		if (mapping.getVariables() == null || mapping.getVariables().isEmpty())
+		if (mapping.getVariables() == null || mapping.getVariables().isEmpty()) {
 			return;
+		}
 
 		for (GipsMappingVariable gipsVar : mapping.getVariables()) {
 			Variable var = factory.createVariable();
@@ -430,16 +433,22 @@ public class GipsToIntermediate {
 
 					substituteRelation.setLhs(substituteSum);
 					dConstraint.setExpression(substituteRelation);
+					gipsl2gipsTrace.map(eConstraint.getExpr(), dConstraint.getExpression());
 				}
 				case LITERAL -> {
 					Constraint constraint = transformConstraint(eSubConstraint.result().values().iterator().next());
 					constraint.setNegated(false);
+
 					gipsl2gipsTrace.map(eConstraint, constraint);
+					gipsl2gipsTrace.map(eConstraint.getExpr(), constraint.getExpression());
+
 				}
 				case NEGATED_LITERAL -> {
 					Constraint constraint = transformConstraint(eSubConstraint.result().values().iterator().next());
 					data.model().getConstraints().add(constraint);
+
 					gipsl2gipsTrace.map(eConstraint, constraint);
+					gipsl2gipsTrace.map(eConstraint.getExpr(), constraint.getExpression());
 
 					if (constraint.isConstant()) {
 						constraint.setNegated(true);
@@ -494,7 +503,6 @@ public class GipsToIntermediate {
 
 		data.model().getConstraints().add(constraint);
 		data.eConstraint2Constraint().put(subConstraint, constraint);
-		gipsl2gipsTrace.map(subConstraint, constraint);
 		constraintCounter++;
 
 		BooleanExpressionTransformer transformer = transformationFactory.createBooleanTransformer(constraint);
@@ -661,21 +669,21 @@ public class GipsToIntermediate {
 	protected void mapGT2IBeXElements() {
 		Set<EditorPattern> allEditorPatterns = new HashSet<>();
 		allEditorPatterns.addAll(data.gipsSlangFile().getPatterns().stream()
-				.filter(pattern -> GTEditorPatternUtils.containsCreatedOrDeletedElements(pattern))
-				.collect(Collectors.toList()));
-		allEditorPatterns.addAll(data.gipsSlangFile().getImportedPattern().stream().map(ip -> ip.getPattern())
-				.filter(pattern -> GTEditorPatternUtils.containsCreatedOrDeletedElements(pattern))
-				.collect(Collectors.toList()));
+				.filter(GTEditorPatternUtils::containsCreatedOrDeletedElements).collect(Collectors.toList()));
+		allEditorPatterns.addAll(data.gipsSlangFile().getImportedPattern().stream().map(ImportedPattern::getPattern)
+				.filter(GTEditorPatternUtils::containsCreatedOrDeletedElements).collect(Collectors.toList()));
 
 		for (EditorPattern ePattern : allEditorPatterns) {
 			for (IBeXRule rule : data.model().getIbexModel().getRuleSet().getRules()) {
 				if (rule.getName().equals(ePattern.getName())) {
 					data.ePattern2Rule().put(ePattern, rule);
 					gipsl2gipsTrace.map(ePattern, rule);
+
 					for (EditorNode eNode : ePattern.getNodes()) {
 						for (IBeXNode node : toContextPattern(rule.getLhs()).getSignatureNodes()) {
 							if (eNode.getName().equals(node.getName())) {
 								data.eNode2Node().put(eNode, node);
+								gipsl2gipsTrace.map(eNode, node);
 							}
 						}
 					}
@@ -685,7 +693,7 @@ public class GipsToIntermediate {
 
 		allEditorPatterns = new HashSet<>();
 		allEditorPatterns.addAll(data.gipsSlangFile().getPatterns());
-		allEditorPatterns.addAll(data.gipsSlangFile().getImportedPattern().stream().map(ip -> ip.getPattern())
+		allEditorPatterns.addAll(data.gipsSlangFile().getImportedPattern().stream().map(ImportedPattern::getPattern)
 				.collect(Collectors.toList()));
 
 		for (EditorPattern ePattern : allEditorPatterns) {
@@ -698,6 +706,7 @@ public class GipsToIntermediate {
 						for (IBeXNode node : toContextPattern(pattern).getSignatureNodes()) {
 							if (eNode.getName().equals(node.getName())) {
 								data.eNode2Node().putIfAbsent(eNode, node);
+								gipsl2gipsTrace.map(eNode, node);
 							}
 						}
 					}

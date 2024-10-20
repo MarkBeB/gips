@@ -16,7 +16,7 @@ import org.emoflon.gips.core.TypeIndexer;
 import org.emoflon.gips.core.ilp.ILPSolver;
 import org.emoflon.gips.core.ilp.ILPSolverConfig;
 import org.emoflon.gips.core.validation.GipsConstraintValidationLog;
-import org.emoflon.gips.debugger.better.Gips2IlpTracer;
+import org.emoflon.gips.debugger.api.Gips2IlpTracer;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediateModel;
 import org.emoflon.gips.intermediate.GipsIntermediate.GipsIntermediatePackage;
 import org.emoflon.gips.intermediate.GipsIntermediate.ILPConfig;
@@ -92,14 +92,14 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 
 	/**
 	 * Initializes the API with a given resource set as model.
-	 * 
+	 *
 	 * @param model Resource set to set as model.
 	 */
 	public abstract void init(final ResourceSet model);
 
 	/**
 	 * Returns the resource set from the eMoflon API.
-	 * 
+	 *
 	 * @return Resource set from the eMoflon API.
 	 */
 	public ResourceSet getResourceSet() {
@@ -110,6 +110,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	 * Terminates the GipsEngine (super class) and the eMoflon::IBeX engine
 	 * (including the pattern matcher).
 	 */
+	@Override
 	public void terminate() {
 		// Terminate the GipsEngine
 		super.terminate();
@@ -137,7 +138,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	/**
 	 * Internal initialization that uses an already existing resource set as a
 	 * model.
-	 * 
+	 *
 	 * @param gipsModelURI URL to the GIPS model.
 	 * @param model        Resource set that contains the already existing model
 	 *                     instance.
@@ -151,10 +152,10 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 
 	protected void createInternals(final URI gipsModelURI) {
 		loadIntermediateModel(gipsModelURI);
-		initTracer(gipsModelURI);
 		initTypeIndexer();
 		validationLog = new GipsConstraintValidationLog();
 		setSolverConfig(gipsModel.getConfig());
+		initTracer();
 		initMapperFactory();
 		createMappers();
 		initConstraintFactory();
@@ -162,15 +163,18 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 		initObjectiveFactory();
 		createObjectives();
 
-		if (gipsModel.getGlobalObjective() != null)
+		if (gipsModel.getGlobalObjective() != null) {
 			setGlobalObjective(createGlobalObjective());
+		}
 
 		setILPSolver(createSolver());
 	}
 
-	protected void initTracer(final URI gipsModelURI) {
-		var filePath = Path.of("").resolve("traces").resolve("gips2ilp-trace.xmi");
-		var tracer = new Gips2IlpTracer(filePath);
+	protected void initTracer() {
+		var tracer = new Gips2IlpTracer();
+		tracer.setOutputLocation(Path.of("").resolve("traces").resolve("gips2ilp-trace.xmi"));
+		tracer.computeGipsModelId(gipsModel.eResource().getURI());
+		tracer.computeLpModelId(gipsModel.getConfig().getLpPath());
 		setTracer(tracer);
 	}
 
@@ -193,7 +197,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 
 		gipsModel = (GipsIntermediateModel) model.getContents().get(0);
 
-		gipsModel.getVariables().stream().filter(var -> var instanceof Mapping).map(var -> (Mapping) var)
+		gipsModel.getVariables().stream().filter(Mapping.class::isInstance).map(var -> (Mapping) var)
 				.forEach(mapping -> name2Mapping.put(mapping.getName(), mapping));
 	}
 
