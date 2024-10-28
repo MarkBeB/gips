@@ -91,6 +91,16 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	public abstract void init(final URI gipsModelURI, final URI modelUri);
 
 	/**
+	 * Initializes the GIPS engine API with a given GIPS intermediate model URI, a
+	 * model URI, and the IBeX pattern path to avoid using hard-coded paths in IBeX.
+	 * 
+	 * @param gipsModelURI    GIPS intermediate model URI to load.
+	 * @param modelUri        Model URI to load.
+	 * @param ibexPatternPath IBeX pattern path to load.
+	 */
+	public abstract void init(final URI gipsModelURI, final URI modelUri, final URI ibexPatternPath);
+
+	/**
 	 * Initializes the API with a given resource set as model.
 	 *
 	 * @param model Resource set to set as model.
@@ -128,10 +138,33 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 				config.isEnableLpOutput(), config.getLpPath());
 	}
 
+	/**
+	 * Initializes the GIPS engine API with a given GIPS intermediate model URI and
+	 * a model URI.
+	 * 
+	 * @param gipsModelURI GIPS intermediate model URI to load.
+	 * @param modelUri     Model URI to load.
+	 */
 	protected void initInternal(final URI gipsModelURI, final URI modelUri) {
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.loadModel(modelUri);
 		eMoflonAPI = eMoflonApp.initAPI();
+		createInternals(gipsModelURI);
+	}
+
+	/**
+	 * Initializes the GIPS engine API with a given GIPS intermediate model URI, a
+	 * model URI, and the IBeX pattern path to avoid using hard-coded paths in IBeX
+	 * internally.
+	 * 
+	 * @param gipsModelURI    GIPS intermediate model URI to load.
+	 * @param modelUri        Model URI to load.
+	 * @param ibexPatternPath IBeX pattern path to load.
+	 */
+	protected void initInternal(final URI gipsModelURI, final URI modelUri, final URI ibexPatternPath) {
+		eMoflonApp.registerMetaModels();
+		eMoflonApp.loadModel(modelUri);
+		eMoflonAPI = eMoflonApp.initAPI(ibexPatternPath);
 		createInternals(gipsModelURI);
 	}
 
