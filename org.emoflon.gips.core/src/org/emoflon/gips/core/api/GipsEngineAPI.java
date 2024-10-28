@@ -93,7 +93,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	/**
 	 * Initializes the GIPS engine API with a given GIPS intermediate model URI, a
 	 * model URI, and the IBeX pattern path to avoid using hard-coded paths in IBeX.
-	 * 
+	 *
 	 * @param gipsModelURI    GIPS intermediate model URI to load.
 	 * @param modelUri        Model URI to load.
 	 * @param ibexPatternPath IBeX pattern path to load.
@@ -141,7 +141,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	/**
 	 * Initializes the GIPS engine API with a given GIPS intermediate model URI and
 	 * a model URI.
-	 * 
+	 *
 	 * @param gipsModelURI GIPS intermediate model URI to load.
 	 * @param modelUri     Model URI to load.
 	 */
@@ -149,14 +149,14 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.loadModel(modelUri);
 		eMoflonAPI = eMoflonApp.initAPI();
-		createInternals(gipsModelURI);
+		initInternalCommon(gipsModelURI);
 	}
 
 	/**
 	 * Initializes the GIPS engine API with a given GIPS intermediate model URI, a
 	 * model URI, and the IBeX pattern path to avoid using hard-coded paths in IBeX
 	 * internally.
-	 * 
+	 *
 	 * @param gipsModelURI    GIPS intermediate model URI to load.
 	 * @param modelUri        Model URI to load.
 	 * @param ibexPatternPath IBeX pattern path to load.
@@ -165,7 +165,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.loadModel(modelUri);
 		eMoflonAPI = eMoflonApp.initAPI(ibexPatternPath);
-		createInternals(gipsModelURI);
+		initInternalCommon(gipsModelURI);
 	}
 
 	/**
@@ -176,14 +176,39 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	 * @param model        Resource set that contains the already existing model
 	 *                     instance.
 	 */
-	protected void initInternalCommon(final URI gipsModelURI, final ResourceSet model) {
+	protected void initInternal(final URI gipsModelURI, final ResourceSet model) {
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.setModel(model);
 		eMoflonAPI = eMoflonApp.initAPI();
-		createInternals(gipsModelURI);
+		initInternalCommon(gipsModelURI);
 	}
 
-	protected void createInternals(final URI gipsModelURI) {
+	/**
+	 * Internal initialization that uses an already existing resource set as a model
+	 * and a given IBeX pattern path to avoid loading of hard-coded XMI models in
+	 * IBeX.
+	 *
+	 * @param gipsModelURI    URL to the GIPS model.
+	 * @param model           Resource set that contains the already existing model
+	 *                        instance.
+	 * @param ibexPatternPath IBeX pattern path to load.
+	 */
+	protected void initInternal(final URI gipsModelURI, final ResourceSet model, final URI ibexPatternPath) {
+		eMoflonApp.registerMetaModels();
+		eMoflonApp.setModel(model);
+		eMoflonAPI = eMoflonApp.initAPI(ibexPatternPath);
+
+		initInternalCommon(gipsModelURI);
+	}
+
+	/**
+	 * Initializes the internal GIPS components (e.g., intermediate model, type
+	 * indexer, etc.). This method is common for all internal initialization
+	 * methods.
+	 *
+	 * @param gipsModelURI URI to the GIPS (intermediate) model.
+	 */
+	private void initInternalCommon(final URI gipsModelURI) {
 		loadIntermediateModel(gipsModelURI);
 		initTypeIndexer();
 		validationLog = new GipsConstraintValidationLog();
