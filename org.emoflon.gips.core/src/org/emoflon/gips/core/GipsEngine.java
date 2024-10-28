@@ -3,13 +3,16 @@ package org.emoflon.gips.core;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
+import org.eclipse.emf.ecore.util.EcoreUtil;
 import org.emoflon.gips.core.ilp.ILPSolver;
 import org.emoflon.gips.core.ilp.ILPSolverOutput;
 import org.emoflon.gips.core.ilp.ILPSolverStatus;
 import org.emoflon.gips.core.ilp.ILPVariable;
 import org.emoflon.gips.core.validation.GipsConstraintValidationLog;
+import org.emoflon.gips.debugger.api.Gips2IlpTracer;
 import org.emoflon.gips.intermediate.GipsIntermediate.Variable;
 
 public abstract class GipsEngine {
@@ -23,6 +26,7 @@ public abstract class GipsEngine {
 	final protected Map<String, GipsObjective<?, ?, ?>> objectives = new HashMap<>();
 	protected GipsGlobalObjective globalObjective;
 	protected ILPSolver ilpSolver;
+	protected Gips2IlpTracer tracer;
 
 	public abstract void update();
 
@@ -31,14 +35,15 @@ public abstract class GipsEngine {
 	public abstract void saveResult(final String path) throws IOException;
 
 	public void buildILPProblem(boolean doUpdate) {
-		if (doUpdate)
+		if (doUpdate) {
 			update();
+		}
 
 		// Reset validation log
 		validationLog = new GipsConstraintValidationLog();
 
 		// Constraints are re-build a few lines below
-		constraints.values().stream().forEach(constraint -> constraint.clear());
+		constraints.values().stream().forEach(GipsConstraint::clear);
 
 		// Objectives will be build by the global objective call below
 //		objectives.values().stream().forEach(objective -> objective.clear());
@@ -47,7 +52,7 @@ public abstract class GipsEngine {
 
 		nonMappingVariables.clear();
 		mappers.values().stream().flatMap(mapper -> mapper.getMappings().values().stream())
-				.filter(m -> m.hasAdditionalVariables()).forEach(m -> {
+				.filter(GipsMapping::hasAdditionalVariables).forEach(m -> {
 					Map<String, ILPVariable<?>> variables = nonMappingVariables.get(m);
 					if (variables == null) {
 						variables = Collections.synchronizedMap(new HashMap<>());
@@ -56,12 +61,67 @@ public abstract class GipsEngine {
 					variables.putAll(m.getAdditionalVariables());
 				});
 
-		constraints.values().stream().forEach(constraint -> constraint.calcAdditionalVariables());
-		constraints.values().stream().forEach(constraint -> constraint.buildConstraints());
-		if (globalObjective != null)
+		constraints.values().stream().forEach(GipsConstraint::calcAdditionalVariables);
+		constraints.values().stream().forEach(GipsConstraint::buildConstraints);
+		if (globalObjective != null) {
 			globalObjective.buildObjectiveFunction();
+		}
 
 		ilpSolver.buildILPProblem();
+
+		buildTracingTree();
+	}
+
+	protected void buildTracingTree() {
+		final var tracer = getTracer();
+
+		// try to build a bridge between ILP model and ILP text file
+
+		for (final var mapper : this.mappers.values()) {
+			tracer.gips2intern(mapper.mapping, "mapping::" + mapper.getName());
+			final var fragmentPath = EcoreUtil.getURI(mapper.mapping);
+			System.out.println(fragmentPath + " maps to " + mapper.getMappings().size() + " values");
+		}
+
+		for (final var constraint : this.constraints.values()) {
+			tracer.gips2intern(constraint.constraint, "constraint::" + constraint.getName());
+			for (final var ilpConstraint : constraint.getConstraints()) {
+				for (final var ilpTerm : ilpConstraint.lhsTerms()) {
+					tracer.gips2intern(constraint.constraint.getExpression(),
+							"constraint-var::" + ilpTerm.variable().getName());
+				}
+			}
+
+			for (final var variables : constraint.getAdditionalVariables()) {
+				tracer.gips2intern(constraint.constraint.getExpression(), "constraint-var::" + variables.getName());
+			}
+		}
+
+		for (final var objective : this.objectives.values()) {
+			tracer.gips2intern(objective.objective, "objective::" + objective.getName());
+			for (var term : objective.terms) {
+				tracer.gips2intern(objective.objective, "objective-var::" + term.variable().getName());
+			}
+
+			final var fragmentPath = EcoreUtil.getURI(objective.objective);
+			System.out.println(fragmentPath + " maps to " + objective.terms.size() + " values");
+		}
+
+		final var constraintsInMapper = new HashSet<>(this.mappers.keySet());
+		constraintsInMapper.retainAll(this.constraints.keySet());
+		System.out.println("Constraints in mapper " + constraintsInMapper.size() + " of " + constraints.size() + " ["
+				+ mappers.size() + "]");
+
+		final var objectsInMapper = new HashSet<>(this.mappers.keySet());
+		objectsInMapper.retainAll(this.objectives.keySet());
+		System.out.println("Objectives in mapper " + objectsInMapper.size() + " of " + objectives.size() + " ["
+				+ mappers.size() + "]");
+
+		if (globalObjective != null) {
+			tracer.gips2intern(globalObjective.objective, "globalObjective::");
+		}
+
+		tracer.finalizeTrace();
 	}
 
 	public ILPSolverOutput solveILPProblem() {
@@ -71,8 +131,9 @@ public abstract class GipsEngine {
 			return output;
 		}
 		ILPSolverOutput output = ilpSolver.solve();
-		if (output.status() != ILPSolverStatus.INFEASIBLE && output.solutionCount() > 0)
+		if (output.status() != ILPSolverStatus.INFEASIBLE && output.solutionCount() > 0) {
 			ilpSolver.updateValuesFromSolution();
+		}
 
 		ilpSolver.reset();
 		return output;
@@ -116,9 +177,10 @@ public abstract class GipsEngine {
 
 	public synchronized ILPVariable<?> getNonMappingVariable(final Object context, final String variableTypeName) {
 		Map<String, ILPVariable<?>> variables = nonMappingVariables.get(context);
-		if (variables == null)
+		if (variables == null) {
 			throw new RuntimeException(
 					"Variable <" + variableTypeName + "> is not present in the non-mapping variable index.");
+		}
 
 		return variables.get(variableTypeName);
 
@@ -157,5 +219,13 @@ public abstract class GipsEngine {
 
 	public void setILPSolver(final ILPSolver solver) {
 		this.ilpSolver = solver;
+	}
+
+	public void setTracer(final Gips2IlpTracer tracer) {
+		this.tracer = tracer;
+	}
+
+	public Gips2IlpTracer getTracer() {
+		return this.tracer;
 	}
 }
