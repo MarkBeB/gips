@@ -176,7 +176,7 @@ public abstract class GipsEngineAPI<EMOFLON_APP extends GraphTransformationApp<E
 	 * @param model        Resource set that contains the already existing model
 	 *                     instance.
 	 */
-	protected void initInternal(final URI gipsModelURI, final ResourceSet model) {
+	protected void initInternalCommon(final URI gipsModelURI, final ResourceSet model) {
 		eMoflonApp.registerMetaModels();
 		eMoflonApp.setModel(model);
 		eMoflonAPI = eMoflonApp.initAPI();
